@@ -8,9 +8,9 @@ using namespace std;
 
 int main() 
 {
-	int longitud = 10;
+	int longitud = 50;
 	int radio    = 10;
-	int n_gens   = 10000;
+	int n_gens   = 1001;
 	int n_hilos  = 2;
 
 	chrono::time_point<chrono::steady_clock> tic, toc;
@@ -22,15 +22,4 @@ int main()
 	double elapsed = chrono::duration_cast<chrono::nanoseconds>(toc-tic).count();
 	cout << elapsed * 1e-9 << endl;
 	return 0;
-
-	/*
-	vector<thread> v;
-	for(int i=0 ; i<6 ; i++)
-		v.push_back(thread (foo));
-	for(int i=0 ; i<6 ; i++)
-		v[i].join();
-
-	cout << "sacabo\n";
-	return 0;
-	*/
 }

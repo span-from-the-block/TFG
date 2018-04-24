@@ -1,13 +1,13 @@
-#include <cstdint>
 #include <algorithm>
-#include <tuple>
 #include <atomic>
-#include <thread>
 #include <cmath>
-#include <iostream>
 #include <cstdint>
-#include <sstream>
+#include <iostream>
+#include <mutex>
 #include <random>
+#include <thread>
+#include <tuple>
+#include <sstream>
 #include <vector>
 #include "Duct.h"
 //#include "cyclic_barrier.h"
@@ -67,17 +67,17 @@ bool Duct::get_HGP()               { return HGP; }
 int  Duct::is_DCIS_achieved()      { return DCIS_achieved ? DCIS_generation : 0; }
 
 Duct::Duct(int l, int r, bool h, int n) :
-	length(l),
-	radius(r),
-	HGP(h),
-	diameter(r*2),
-	n_threads(n),
-	local_initialized(n,false),
 	duct_type         (l, vector<vector<uint8_t>>(r*2, vector<uint8_t>(r*2, 0))),
 	duct_housekeeping (l, vector<vector<uint8_t>>(r*2, vector<uint8_t>(r*2, 0))),
 	duct_protooncogene(l, vector<vector<uint8_t>>(r*2, vector<uint8_t>(r*2, 0))),
 	duct_supressor    (l, vector<vector<uint8_t>>(r*2, vector<uint8_t>(r*2, 0))),
 	duct_apoptosis    (l, vector<vector<uint8_t>>(r*2, vector<uint8_t>(r*2, 0))),
+	length(l),
+	radius(r),
+	HGP(h),
+	n_threads(n),
+	diameter(r*2),
+	local_initialized(n,false),
 	thread_locks(n-1)
 {
 	for(int z=0 ; z<l ; z++)
@@ -152,6 +152,8 @@ void Duct::run(int begin, int end, int index)
 		next_generation();
 		update_global_counters();
 	}
+	stringstream ss; ss << "thread " << this_thread::get_id() << " is out this bitch\n";
+	cout << ss.str(); ss.str("");
 }
 
 void Duct::next_generation()
@@ -302,7 +304,7 @@ void Duct::execute(int nGens)
 			int end   = (i+1)*step-1;
 			if ((i+1) == n_threads)
 				end = length-1;
-			thread_array.push_back(thread(Duct::run, this, begin, end, i));
+			thread_array.push_back(thread(&Duct::run, this, begin, end, i));
 		}
 		
 		for (int i=0; i<total_generations ; i++)
@@ -343,7 +345,7 @@ void Duct::execute(int nGens)
 			}
 			cout << endl << i << endl;
 			}
-			
+
 			if(!initialized)
 			{
 				bool init_flag = true;
@@ -359,7 +361,8 @@ void Duct::execute(int nGens)
 		//for (auto t : thread_array)
 		for(int t=0 ; t<n_threads ; t++)
 		{
-			thread_array.at(t).join();
+			thread_array[t].join();
+			//delete thread_array[t];
 		}
 	}
 }

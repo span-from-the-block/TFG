@@ -30,10 +30,17 @@ class Duct {
 		static const uint8_t gene_length   = 32;
 		static const int     mutation_rate = 5; // Representado como mutation_rate/1000
 
+		vector<vector<vector<uint8_t> > > duct_type;
+		vector<vector<vector<uint8_t> > > duct_housekeeping;
+		vector<vector<vector<uint8_t> > > duct_protooncogene;
+		vector<vector<vector<uint8_t> > > duct_supressor;
+		vector<vector<vector<uint8_t> > > duct_apoptosis;
+
 		int	length;
 		int	radius;
-		int	diameter;
 		bool HGP; 		   // Indica presencia o no de HGP
+		int n_threads; // nº de hilos
+		int	diameter;
 		int	capacity;	   // Capacidad total del ducto
 		int	stem_capacity; // Capacidad de las dos capas principales del ducto
 
@@ -88,7 +95,6 @@ class Duct {
 
 		int   	   total_generations;
 
-		int n_threads; // nº de hilos
 		CyclicBarrier* thread_barrier;
 		vector<mutex>  thread_locks;
 		atomic<int>	   thread_counter;
@@ -126,13 +132,6 @@ class Duct {
 		bool migrate(const Coordinate&, uint8_t);
 		void update_global_counters();
 		float nextInt(int, int);
-
-		vector<vector<vector<uint8_t> > > duct_type;
-		vector<vector<vector<uint8_t> > > duct_housekeeping;
-		vector<vector<vector<uint8_t> > > duct_protooncogene;
-		vector<vector<vector<uint8_t> > > duct_supressor;
-		vector<vector<vector<uint8_t> > > duct_apoptosis;
-
 
 		void set_Duct_Type();
 		vector<vector<vector<uint8_t> > > get_duct();
