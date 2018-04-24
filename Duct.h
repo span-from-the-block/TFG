@@ -127,16 +127,16 @@ class Duct {
 		void update_global_counters();
 		float nextInt(int, int);
 
-		uint8_t*** duct_type;
-		uint8_t*** duct_housekeeping;
-		uint8_t*** duct_protooncogene;
-		uint8_t*** duct_supressor;
-		uint8_t*** duct_apoptosis;
+		vector<vector<vector<uint8_t> > > duct_type;
+		vector<vector<vector<uint8_t> > > duct_housekeeping;
+		vector<vector<vector<uint8_t> > > duct_protooncogene;
+		vector<vector<vector<uint8_t> > > duct_supressor;
+		vector<vector<vector<uint8_t> > > duct_apoptosis;
 
 
 		void set_Duct_Type();
-		uint8_t*** get_duct();
-		uint8_t**  get_slice(int);
+		vector<vector<vector<uint8_t> > > get_duct();
+		vector<vector<uint8_t> > get_slice(int);
 		uint8_t get_cell_type(const Coordinate&);
 		uint8_t get_gene_housekeeping(const Coordinate&);
 		uint8_t get_gene_protooncogene(const Coordinate&);

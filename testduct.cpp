@@ -8,10 +8,10 @@ using namespace std;
 
 int main() 
 {
-	int longitud = 50;
+	int longitud = 10;
 	int radio    = 10;
-	int n_gens   = 50;
-	int n_hilos  = 4;
+	int n_gens   = 10000;
+	int n_hilos  = 2;
 
 	chrono::time_point<chrono::steady_clock> tic, toc;
 	

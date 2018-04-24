@@ -72,41 +72,14 @@ Duct::Duct(int l, int r, bool h, int n) :
 	HGP(h),
 	diameter(r*2),
 	n_threads(n),
-	local_initialized(n,false)
+	local_initialized(n,false),
+	duct_type         (l, vector<vector<uint8_t>>(r*2, vector<uint8_t>(r*2, 0))),
+	duct_housekeeping (l, vector<vector<uint8_t>>(r*2, vector<uint8_t>(r*2, 0))),
+	duct_protooncogene(l, vector<vector<uint8_t>>(r*2, vector<uint8_t>(r*2, 0))),
+	duct_supressor    (l, vector<vector<uint8_t>>(r*2, vector<uint8_t>(r*2, 0))),
+	duct_apoptosis    (l, vector<vector<uint8_t>>(r*2, vector<uint8_t>(r*2, 0))),
+	thread_locks(n-1)
 {
-	duct_type 		   = new uint8_t**[length];
-	duct_housekeeping  = new uint8_t**[length];
-	duct_protooncogene = new uint8_t**[length];
-	duct_supressor 	   = new uint8_t**[length];
-	duct_apoptosis 	   = new uint8_t**[length];
-
-	for(int z=0 ; z<length ; z++)
-	{
-		duct_type[z] 		  = new uint8_t*[diameter];
-		duct_housekeeping[z]  = new uint8_t*[diameter];
-		duct_protooncogene[z] = new uint8_t*[diameter];
-		duct_supressor[z] 	  = new uint8_t*[diameter];
-		duct_apoptosis[z] 	  = new uint8_t*[diameter];
-
-		for(int y=0 ; y<diameter ; y++)
-		{
-			duct_type[z][y] 		 = new uint8_t[diameter];
-			duct_housekeeping[z][y]  = new uint8_t[diameter];
-			duct_protooncogene[z][y] = new uint8_t[diameter];
-			duct_supressor[z][y] 	 = new uint8_t[diameter];
-			duct_apoptosis[z][y] 	 = new uint8_t[diameter];
-
-			for(int x=0 ; x<diameter ; x++)
-			{
-				duct_type[z][y][x] = 0;
-				duct_housekeeping[z][y][x] = 0;
-				duct_protooncogene[z][y][x] = 0;
-				duct_supressor[z][y][x] = 0;
-				duct_apoptosis[z][y][x] = 0;
-			}
-		}
-	}
-
 	for(int z=0 ; z<l ; z++)
 	{
 		for(int x=0 ; x<=(r/2) ; x++)
@@ -115,15 +88,15 @@ Duct::Duct(int l, int r, bool h, int n) :
 			{
 				if (get_point_radius(x,y) == r)
 				{
-					duct_type[z][x][y]         = BASAL;
-					duct_type[z][x][2*r-y]     = BASAL;
-					duct_type[z][2*r-x][y]     = BASAL;
-					duct_type[z][2*r-x][2*r-y] = BASAL;
+					duct_type.at(z).at(x).at(y)         = BASAL;
+					duct_type.at(z).at(x).at(2*r-y)     = BASAL;
+					duct_type.at(z).at(2*r-x).at(y)     = BASAL;
+					duct_type.at(z).at(2*r-x).at(2*r-y) = BASAL;
 					// simetría diagonal
-					duct_type[z][y][x]         = BASAL;
-					duct_type[z][y][2*r-x]     = BASAL;
-					duct_type[z][2*r-y][x]     = BASAL;
-					duct_type[z][2*r-y][2*r-x] = BASAL;
+					duct_type.at(z).at(y).at(x)         = BASAL;
+					duct_type.at(z).at(y).at(2*r-x)     = BASAL;
+					duct_type.at(z).at(2*r-y).at(x)     = BASAL;
+					duct_type.at(z).at(2*r-y).at(2*r-x) = BASAL;
 				}
 			}
 		}
@@ -156,7 +129,6 @@ Duct::Duct(int l, int r, bool h, int n) :
 	if(n_threads > 1)
 	{
 		thread_barrier = new CyclicBarrier(n_threads + 1); // Hilos que lanzamos mas éste, el principal
-		thread_locks   = vector<mutex>(n_threads-1);
 	}
 
 	reproductions_history.push_back(0);
@@ -206,7 +178,7 @@ void Duct::next_generation()
 		shuffle(begin(index_array_aux), end(index_array_aux), rng);
 	}
 
-	for(int z_i = 0, z ; z_i < index_array.size() ; z_i++) {
+	for(uint32_t z_i = 0, z ; z_i < index_array.size() ; z_i++) {
 		z = index_array_aux[z_i];
 
 		bool left_boundary_flag = false;
@@ -265,7 +237,6 @@ void Duct::execute(int nGens)
 	{
 		for (int i=0; i<total_generations; i++)
 		{
-			/*
 			if(i%1000 == 0)
 			{
 			for(int z=0 ; z<length ; z++)
@@ -302,7 +273,7 @@ void Duct::execute(int nGens)
 			}
 			cout << endl << i << endl;
 			}
-			*/
+
 			initialized = local_initialized[0];
 			next_generation();
 
@@ -324,7 +295,6 @@ void Duct::execute(int nGens)
 	// PARALELO
 	else
 	{
-
 		int step = length/n_threads;
 		for(int i=0 ; i<n_threads ; i++)
 		{
@@ -332,12 +302,11 @@ void Duct::execute(int nGens)
 			int end   = (i+1)*step-1;
 			if ((i+1) == n_threads)
 				end = length-1;
-			thread_array.push_back(thread(&Duct::run, this, begin, end, i));
+			thread_array.push_back(thread(Duct::run, this, begin, end, i));
 		}
-
+		
 		for (int i=0; i<total_generations ; i++)
 		{
-			/*
 			if(i%1000 == 0)
 			{
 			for(int z=0 ; z<length ; z++)
@@ -374,7 +343,7 @@ void Duct::execute(int nGens)
 			}
 			cout << endl << i << endl;
 			}
-			*/
+			
 			if(!initialized)
 			{
 				bool init_flag = true;
@@ -390,7 +359,7 @@ void Duct::execute(int nGens)
 		//for (auto t : thread_array)
 		for(int t=0 ; t<n_threads ; t++)
 		{
-			thread_array[t].join();
+			thread_array.at(t).join();
 		}
 	}
 }
@@ -474,7 +443,7 @@ void Duct::init_routine(const Coordinate& current_cell_coord)
 		}
 
 		if(end_flag == false)
-			local_initialized[thread_index] = end_flag;
+			local_initialized.at(thread_index) = end_flag;
 	}
 
 	this->update_local_counters(current_cell_coord, false, false, reproduction_flag, false);
@@ -525,33 +494,33 @@ void Duct::get_neighbors(const Coordinate& c, vector<Coordinate>& neighbors)
 	int y = c.y;
 	int z = c.z;
 	// Las 6 coordenadas "principales" (vecindad directa)
-	neighbors[0] = (Coordinate(x,   y,   z-1));
-	neighbors[1] = (Coordinate(x,   y,   z+1));
-	neighbors[2] = (Coordinate(x,   y-1, z));
-	neighbors[3] = (Coordinate(x-1, y,   z));
-	neighbors[4] = (Coordinate(x+1, y,   z));
-	neighbors[5] = (Coordinate(x,   y+1, z));
+	neighbors.at(0) = (Coordinate(x,   y,   z-1));
+	neighbors.at(1) = (Coordinate(x,   y,   z+1));
+	neighbors.at(2) = (Coordinate(x,   y-1, z));
+	neighbors.at(3) = (Coordinate(x-1, y,   z));
+	neighbors.at(4) = (Coordinate(x+1, y,   z));
+	neighbors.at(5) = (Coordinate(x,   y+1, z));
 	// Vecinos diagonales
-	neighbors[6] = (Coordinate(x-1, y-1, z-1)); // diagonal
-	neighbors[7] = (Coordinate(x,   y-1, z-1)); // diagonal
-	neighbors[8] = (Coordinate(x+1, y-1, z-1)); // diagonal
-	neighbors[9] = (Coordinate(x-1, y,   z-1)); // diagonal
-	neighbors[10] = (Coordinate(x+1, y,   z-1)); // diagonal
-	neighbors[11] = (Coordinate(x-1, y+1, z-1)); // diagonal
-	neighbors[12] = (Coordinate(x,   y+1, z-1)); // diagonal
-	neighbors[13] = (Coordinate(x+1, y+1, z-1)); // diagonal
-	neighbors[14] = (Coordinate(x-1, y-1, z+1)); // diagonal
-	neighbors[15] = (Coordinate(x,   y-1, z+1)); // diagonal
-	neighbors[16] = (Coordinate(x+1, y-1, z+1)); // diagonal
-	neighbors[17] = (Coordinate(x-1, y,   z+1)); // diagonal
-	neighbors[18] = (Coordinate(x+1, y,   z+1)); // diagonal
-	neighbors[19] = (Coordinate(x-1, y+1, z+1)); // diagonal
-	neighbors[20] = (Coordinate(x,   y+1, z+1)); // diagonal
-	neighbors[21] = (Coordinate(x+1, y+1, z+1)); // diagonal
-	neighbors[22] = (Coordinate(x-1, y-1, z));   // diagonal
-	neighbors[23] = (Coordinate(x+1, y-1, z));   // diagonal
-	neighbors[24] = (Coordinate(x-1, y+1, z));   // diagonal
-	neighbors[25] = (Coordinate(x+1, y+1, z));   // diagonal
+	neighbors.at(6) = (Coordinate(x-1, y-1, z-1)); // diagonal
+	neighbors.at(7) = (Coordinate(x,   y-1, z-1)); // diagonal
+	neighbors.at(8) = (Coordinate(x+1, y-1, z-1)); // diagonal
+	neighbors.at(9) = (Coordinate(x-1, y,   z-1)); // diagonal
+	neighbors.at(10) = (Coordinate(x+1, y,   z-1)); // diagonal
+	neighbors.at(11) = (Coordinate(x-1, y+1, z-1)); // diagonal
+	neighbors.at(12) = (Coordinate(x,   y+1, z-1)); // diagonal
+	neighbors.at(13) = (Coordinate(x+1, y+1, z-1)); // diagonal
+	neighbors.at(14) = (Coordinate(x-1, y-1, z+1)); // diagonal
+	neighbors.at(15) = (Coordinate(x,   y-1, z+1)); // diagonal
+	neighbors.at(16) = (Coordinate(x+1, y-1, z+1)); // diagonal
+	neighbors.at(17) = (Coordinate(x-1, y,   z+1)); // diagonal
+	neighbors.at(18) = (Coordinate(x+1, y,   z+1)); // diagonal
+	neighbors.at(19) = (Coordinate(x-1, y+1, z+1)); // diagonal
+	neighbors.at(20) = (Coordinate(x,   y+1, z+1)); // diagonal
+	neighbors.at(21) = (Coordinate(x+1, y+1, z+1)); // diagonal
+	neighbors.at(22) = (Coordinate(x-1, y-1, z));   // diagonal
+	neighbors.at(23) = (Coordinate(x+1, y-1, z));   // diagonal
+	neighbors.at(24) = (Coordinate(x-1, y+1, z));   // diagonal
+	neighbors.at(25) = (Coordinate(x+1, y+1, z));   // diagonal
 }
 
 /**
@@ -568,14 +537,14 @@ Coordinate Duct::get_vacant_neighbor(const Coordinate& cell_coord)
 
 	shuffle(begin(neighbors), end(neighbors), rng);
 
-	for(int i=0 ; i < neighbors.size() ; i++)
+	for(uint32_t i=0 ; i < neighbors.size() ; i++)
 	{
-		Coordinate aux_coord = neighbors[i];
+		Coordinate aux_coord = neighbors.at(i);
 		if(coordinate_is_inbounds(aux_coord) == true &&
 		   cell_is_null(aux_coord) == true &&
 		   get_point_radius(aux_coord.x, aux_coord.y) < radius)
 		{
-			return neighbors[i];
+			return neighbors.at(i);
 		}
 	}
 	return null_coordinate;
@@ -590,9 +559,9 @@ bool Duct::has_adjadcent_neighbor(const Coordinate& cell_coord, const Coordinate
 {
 	vector<Coordinate> neighbors(26);
 	get_neighbors(cell_coord, neighbors);
-	for(int i=0 ; i < neighbors.size() ; i++)
+	for(uint32_t i=0 ; i < neighbors.size() ; i++)
 	{
-		Coordinate aux_coord = neighbors[i];
+		Coordinate aux_coord = neighbors.at(i);
 		if(coordinate_is_inbounds(aux_coord) == true &&
 		   cell_is_null(aux_coord) == false /*&&
 		   !aux_coord.equals(old_coord)*/)
@@ -632,9 +601,9 @@ bool Duct::reproduce(const Coordinate& current_cell_coord, uint8_t current_cell_
 
 	Coordinate new_cell_coord;
 	bool end_flag = false;
-	for(int i=0 ; i<neighbors.size() ; i++)
+	for(uint32_t i=0 ; i<neighbors.size() ; i++)
 	{
-		new_cell_coord = neighbors[i];
+		new_cell_coord = neighbors.at(i);
 		if(coordinate_is_inbounds(new_cell_coord) == true &&
 		   cell_is_null(new_cell_coord) == true &&
 		   get_point_radius(new_cell_coord.x, new_cell_coord.y) <= max_radius &&
@@ -665,9 +634,9 @@ bool Duct::cancerous_reproduce(const Coordinate& current_cell_coord, uint8_t cur
 	shuffle(begin(neighbors), end(neighbors), rng);
 
 	bool end_flag = false;
-	for (int i=0 ; i<neighbors.size() ; i++)
+	for (uint32_t i=0 ; i<neighbors.size() ; i++)
 	{
-		new_cell_coord = neighbors[i];
+		new_cell_coord = neighbors.at(i);
 
 		if (coordinate_is_inbounds(new_cell_coord) == true)
 		{
@@ -712,9 +681,9 @@ bool Duct::hormonal_reproduce(const Coordinate& current_cell_coord, uint8_t curr
 
 	bool end_flag = false;
 	Coordinate pushed_position = null_coordinate;
-	for (int i=0 ; i<neighbors.size() ; i++)
+	for (uint32_t i=0 ; i<neighbors.size() ; i++)
 	{
-		new_cell_coord = neighbors[i];
+		new_cell_coord = neighbors.at(i);
 		if (coordinate_is_inbounds(new_cell_coord) != false &&
 			get_point_radius(new_cell_coord.x, new_cell_coord.y) < radius &&
 			cell_is_null(new_cell_coord) == false &&
@@ -760,9 +729,9 @@ bool Duct::migrate(const Coordinate& current_cell_coord, uint8_t current_cell_ty
 
 	Coordinate new_cell_coord = null_coordinate;
 	bool end_flag = false;
-	for (int i=0 ; i<neighbors.size() ; i++)
+	for (uint32_t i=0 ; i<neighbors.size() ; i++)
 	{
-		new_cell_coord = neighbors[i];
+		new_cell_coord = neighbors.at(i);
 		if (coordinate_is_inbounds(new_cell_coord) == true &&
 			cell_is_null(new_cell_coord) == true &&
 			get_point_radius(new_cell_coord.x, new_cell_coord.y) <= max_radius &&
@@ -833,35 +802,35 @@ void Duct::update_global_counters()
 	}
 }
 
-uint8_t*** Duct::get_duct()       { return duct_type; }
-uint8_t**  Duct::get_slice(int z) { return duct_type[z]; }
-uint8_t Duct::get_cell_type(const Coordinate& co)          { return    		 duct_type[co.z][co.y][co.x]; }
-uint8_t Duct::get_gene_housekeeping(const Coordinate& co)  { return  duct_housekeeping[co.z][co.y][co.x]; }
-uint8_t Duct::get_gene_protooncogene(const Coordinate& co) { return duct_protooncogene[co.z][co.y][co.x]; }
-uint8_t Duct::get_gene_supressor(const Coordinate& co)     { return     duct_supressor[co.z][co.y][co.x]; }
-uint8_t Duct::get_gene_apoptosis(const Coordinate& co)     { return     duct_apoptosis[co.z][co.y][co.x]; }
+vector<vector<vector<uint8_t> > > Duct::get_duct() { return duct_type; }
+vector<vector<uint8_t> > Duct::get_slice(int z)    { return duct_type.at(z); }
+uint8_t Duct::get_cell_type(const Coordinate& co)          { return    		 duct_type.at(co.z).at(co.y).at(co.x); }
+uint8_t Duct::get_gene_housekeeping(const Coordinate& co)  { return  duct_housekeeping.at(co.z).at(co.y).at(co.x); }
+uint8_t Duct::get_gene_protooncogene(const Coordinate& co) { return duct_protooncogene.at(co.z).at(co.y).at(co.x); }
+uint8_t Duct::get_gene_supressor(const Coordinate& co)     { return     duct_supressor.at(co.z).at(co.y).at(co.x); }
+uint8_t Duct::get_gene_apoptosis(const Coordinate& co)     { return     duct_apoptosis.at(co.z).at(co.y).at(co.x); }
 
 
 void Duct::set_cell (const Coordinate& co, uint8_t t, uint8_t hk, uint8_t po, uint8_t sp, uint8_t ap)
 {
-	         duct_type[co.z][co.y][co.x] = t;
-	 duct_housekeeping[co.z][co.y][co.x] = hk;
-	duct_protooncogene[co.z][co.y][co.x] = po;
-	    duct_supressor[co.z][co.y][co.x] = sp;
-	    duct_apoptosis[co.z][co.y][co.x] = ap;
+	         duct_type.at(co.z).at(co.y).at(co.x) = t;
+	 duct_housekeeping.at(co.z).at(co.y).at(co.x) = hk;
+	duct_protooncogene.at(co.z).at(co.y).at(co.x) = po;
+	    duct_supressor.at(co.z).at(co.y).at(co.x) = sp;
+	    duct_apoptosis.at(co.z).at(co.y).at(co.x) = ap;
 }
 
 void Duct::erase_cell(const Coordinate& co)
 {
-	         duct_type[co.z][co.y][co.x] = 0;
-	 duct_housekeeping[co.z][co.y][co.x] = 0;
-	duct_protooncogene[co.z][co.y][co.x] = 0;
-	    duct_supressor[co.z][co.y][co.x] = 0;
-	    duct_apoptosis[co.z][co.y][co.x] = 0;
+	         duct_type.at(co.z).at(co.y).at(co.x) = 0;
+	 duct_housekeeping.at(co.z).at(co.y).at(co.x) = 0;
+	duct_protooncogene.at(co.z).at(co.y).at(co.x) = 0;
+	    duct_supressor.at(co.z).at(co.y).at(co.x) = 0;
+	    duct_apoptosis.at(co.z).at(co.y).at(co.x) = 0;
 }
 
 void Duct::set_cell_type(const Coordinate& co, uint8_t type)
-	{ duct_type[co.z][co.y][co.x] = type; }
+	{ duct_type.at(co.z).at(co.y).at(co.x) = type; }
 
 // Muta 10% del genoma
 uint8_t Duct::mutate_HGP()
@@ -914,10 +883,10 @@ bool Duct::is_dysfunctional(const Coordinate& co)
 		   get_gene_apoptosis(co)	  >= 16;
 }
 
-bool Duct::housekeeping_is_dysfunctional(const Coordinate& co)	 { return  duct_housekeeping[co.z][co.y][co.x] >= 16; }
-bool Duct::protooncogene_is_dysfunctional(const Coordinate& co) { return duct_protooncogene[co.z][co.y][co.x] >= 16; }
-bool Duct::supressor_is_dysfunctional(const Coordinate& co)     { return     duct_supressor[co.z][co.y][co.x] >= 16; }
-bool Duct::apoptosis_is_dysfunctional(const Coordinate& co)     { return     duct_apoptosis[co.z][co.y][co.x] >= 16; }
+bool Duct::housekeeping_is_dysfunctional(const Coordinate& co)	 { return  duct_housekeeping.at(co.z).at(co.y).at(co.x) >= 16; }
+bool Duct::protooncogene_is_dysfunctional(const Coordinate& co) { return duct_protooncogene.at(co.z).at(co.y).at(co.x) >= 16; }
+bool Duct::supressor_is_dysfunctional(const Coordinate& co)     { return     duct_supressor.at(co.z).at(co.y).at(co.x) >= 16; }
+bool Duct::apoptosis_is_dysfunctional(const Coordinate& co)     { return     duct_apoptosis.at(co.z).at(co.y).at(co.x) >= 16; }
 
 bool Duct::cell_is_null(const Coordinate& co) { return get_cell_type(co) == 0; }
 
@@ -1119,24 +1088,4 @@ Duct::~Duct()
 {
 	if(n_threads > 1)
 		delete thread_barrier;
-	
-	for(int z=0 ; z<length ; z++) {
-		for(int y=0 ; y<diameter ; y++) {
-			delete[] duct_type[z][y];
-			delete[] duct_apoptosis[z][y];
-			delete[] duct_supressor[z][y];
-			delete[] duct_housekeeping[z][y];
-			delete[] duct_protooncogene[z][y];
-		}
-		delete[] duct_type[z];
-		delete[] duct_apoptosis[z];
-		delete[] duct_supressor[z];
-		delete[] duct_housekeeping[z];
-		delete[] duct_protooncogene[z];
-	}
-	delete[] duct_type;
-	delete[] duct_apoptosis;
-	delete[] duct_supressor;
-	delete[] duct_housekeeping;
-	delete[] duct_protooncogene;
 }
